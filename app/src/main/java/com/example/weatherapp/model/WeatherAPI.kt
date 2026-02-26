@@ -9,7 +9,8 @@ interface WeatherAPI {
     @GET("weather")
 
     suspend fun getWeather(
-        @Query("q") city: String,
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
         @Query("appid") apiKey: String,
         @Query("units") units: String = "metric"  // this is not used anywhere, but it converts temp from F to C, if this is removed, it will show temp in F
     ): WeatherDataClass
