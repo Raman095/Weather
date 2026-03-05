@@ -1,5 +1,6 @@
 package com.example.weatherapp
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
@@ -48,8 +49,12 @@ import com.example.weatherapp.ui.theme.BlueJC
 import com.example.weatherapp.ui.theme.DarkBlueJC
 import com.example.weatherapp.ui.theme.WeatherAppTheme
 import com.example.weatherapp.viewmodel.WeatherViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.AndroidEntryPoint
+import com.google.android.gms.location.Priority
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -65,6 +70,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun WeatherScreen(viewModel: WeatherViewModel) {
     val weatherData by viewModel.weatherData.collectAsState()    // collectAsState converts StateFlow into compose state, "by" -> unwraps the State so we can use weatherData directly in UI,
@@ -74,15 +80,19 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
 
     val isLoading = weatherData == null
 
-    LaunchedEffect(Unit) {
-        val savedLocation = viewModel.getSavedLocation()
+    val locationPermissionState = rememberPermissionState(
+        permission = Manifest.permission.ACCESS_FINE_LOCATION
+    )
 
-        if (savedLocation != null) {
-            viewModel.fetchWeatherByLocation(
-                savedLocation.first,
-                savedLocation.second
-            )
-        } else {
+    LaunchedEffect(Unit) {
+        if (!locationPermissionState.status.isGranted) {
+            locationPermissionState.launchPermissionRequest()
+        }
+    }
+
+    LaunchedEffect(locationPermissionState.status) {
+
+        if (locationPermissionState.status.isGranted) {
             fetchDeviceLocation(context) { lat, lon ->
                 viewModel.fetchWeatherByLocation(lat, lon)
             }
@@ -214,10 +224,12 @@ fun fetchDeviceLocation(
     val fusedLocationClient =
         LocationServices.getFusedLocationProviderClient(context)
 
-    fusedLocationClient.lastLocation
-        .addOnSuccessListener { location ->
-            if (location != null) {
-                onLocationReceived(location.latitude, location.longitude)
-            }
+    fusedLocationClient.getCurrentLocation(
+        Priority.PRIORITY_HIGH_ACCURACY,
+        null
+    ).addOnSuccessListener { location ->
+        location?.let {
+            onLocationReceived(it.latitude, it.longitude)
         }
+    }
 }
